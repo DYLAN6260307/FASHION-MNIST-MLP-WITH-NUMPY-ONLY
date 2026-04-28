@@ -78,19 +78,3 @@ python scripts/hyperparam_search.py --epochs 5 --max-train 12000 --max-val 2000
 ```bash
 python scripts/hyperparam_search.py --learning-rates 0.05,0.02 --hidden-dims 128,256 --weight-decays 0.0001,0.001 --activations relu,sigmoid
 ```
-
-## 生成带正式链接的报告
-
-模型训练完成并上传权重后，可以重新生成报告，把 GitHub Repo 与 Google Drive 权重链接写入 PDF：
-
-```bash
-python scripts/make_report.py --run-dir outputs/run_时间戳 --github-url "https://github.com/你的用户名/你的仓库" --weights-url "https://drive.google.com/..."
-```
-
-## 提交前检查
-
-1. 确认代码已推送到 Public GitHub Repo。
-2. 确认 `best_model.npz` 已上传到 Google Drive 或其他可访问网盘。
-3. 使用 `scripts/make_report.py` 重新生成报告，确保 PDF 中包含 GitHub Repo 链接和权重下载地址。
-4. 最终提交 PDF 报告、GitHub Repo 链接和模型权重下载地址。
-
