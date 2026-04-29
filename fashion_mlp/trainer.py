@@ -20,9 +20,9 @@ from .optimizer import SGD
 class TrainConfig:
     data_dir: str = "data/fashion-mnist"
     output_dir: str = "outputs/run"
-    hidden_dim: int = 128
-    activation: str = "relu"
-    epochs: int = 20
+    hidden_dims: str = "256,128"
+    activations: str = "relu,tanh"
+    epochs: int = 30
     batch_size: int = 256
     learning_rate: float = 0.05
     lr_decay: float = 0.95
@@ -138,7 +138,8 @@ def run_training(config: TrainConfig) -> Dict[str, object]:
         max_val=config.max_val,
         max_test=config.max_test,
     )
-    model = MLPClassifier(hidden_dim=config.hidden_dim, activation=config.activation, seed=config.seed)
+    hidden_dims = [int(dim.strip()) for dim in config.hidden_dims.split(",") if dim.strip()]
+    model = MLPClassifier(hidden_dims=hidden_dims, activations=config.activations, seed=config.seed)
     history = fit(model, train_data, val_data, config, config.output_dir)
     best_model = MLPClassifier.load(Path(config.output_dir) / "best_model.npz")
     return {
@@ -149,4 +150,3 @@ def run_training(config: TrainConfig) -> Dict[str, object]:
         "test_data": test_data,
         "config": config,
     }
-

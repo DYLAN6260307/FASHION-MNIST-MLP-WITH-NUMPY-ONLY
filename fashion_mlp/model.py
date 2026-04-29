@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, Iterable, List
 
 import numpy as np
 
@@ -9,25 +9,61 @@ from .autodiff import Linear, Module, Parameter, collect_parameters, cross_entro
 
 
 class MLPClassifier(Module):
-    """A three-layer MLP counted as input-hidden-output."""
+    """MLP classifier with two hidden layers by default."""
 
     def __init__(
         self,
         input_dim: int = 784,
-        hidden_dim: int = 128,
+        hidden_dims: Iterable[int] | int | str = (256, 128),
         output_dim: int = 10,
-        activation: str = "relu",
+        activations: Iterable[str] | str = "relu,tanh",
         seed: int = 42,
     ) -> None:
         self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
+        self.hidden_dims = self._parse_hidden_dims(hidden_dims)
         self.output_dim = output_dim
-        self.activation_name = activation.lower()
+        self.activation_names = self._parse_activations(activations, len(self.hidden_dims))
         rng = np.random.default_rng(seed)
-        self.fc1 = Linear(input_dim, hidden_dim, rng, "fc1")
-        self.activation = make_activation(self.activation_name)
-        self.fc2 = Linear(hidden_dim, output_dim, rng, "fc2")
-        self.layers: List[Module] = [self.fc1, self.activation, self.fc2]
+        self.hidden_layers: List[Linear] = []
+        self.activation_layers: List[Module] = []
+        self.layers: List[Module] = []
+
+        prev_dim = input_dim
+        for i, hidden_dim in enumerate(self.hidden_dims, start=1):
+            linear = Linear(prev_dim, hidden_dim, rng, f"fc{i}")
+            activation = make_activation(self.activation_names[i - 1])
+            self.hidden_layers.append(linear)
+            self.activation_layers.append(activation)
+            self.layers.extend([linear, activation])
+            prev_dim = hidden_dim
+
+        self.output_layer = Linear(prev_dim, output_dim, rng, f"fc{len(self.hidden_dims) + 1}")
+        self.layers.append(self.output_layer)
+
+    @staticmethod
+    def _parse_hidden_dims(hidden_dims: Iterable[int] | int | str) -> List[int]:
+        if isinstance(hidden_dims, int):
+            return [hidden_dims, hidden_dims]
+        if isinstance(hidden_dims, str):
+            hidden_dims = [part.strip() for part in hidden_dims.split(",") if part.strip()]
+        dims = [int(dim) for dim in hidden_dims]
+        if len(dims) != 2:
+            raise ValueError("This homework version expects exactly two hidden layers, e.g. 256,128")
+        if any(dim <= 0 for dim in dims):
+            raise ValueError("Hidden dimensions must be positive integers")
+        return dims
+
+    @staticmethod
+    def _parse_activations(activations: Iterable[str] | str, count: int) -> List[str]:
+        if isinstance(activations, str):
+            names = [part.strip().lower() for part in activations.split(",") if part.strip()]
+        else:
+            names = [str(part).strip().lower() for part in activations]
+        if len(names) == 1:
+            names = names * count
+        if len(names) != count:
+            raise ValueError(f"Expected one activation or {count} activations, got {names}")
+        return names
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         out = x
@@ -65,40 +101,56 @@ class MLPClassifier(Module):
     def save(self, path: str | Path) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(
-            path,
-            input_dim=np.array(self.input_dim),
-            hidden_dim=np.array(self.hidden_dim),
-            output_dim=np.array(self.output_dim),
-            activation=np.array(self.activation_name),
-            fc1_weight=self.fc1.weight.data,
-            fc1_bias=self.fc1.bias.data,
-            fc2_weight=self.fc2.weight.data,
-            fc2_bias=self.fc2.bias.data,
-        )
+        arrays = {
+            "input_dim": np.array(self.input_dim),
+            "hidden_dims": np.array(self.hidden_dims, dtype=np.int64),
+            "output_dim": np.array(self.output_dim),
+            "activations": np.array(",".join(self.activation_names)),
+        }
+        for i, layer in enumerate(self.hidden_layers, start=1):
+            arrays[f"fc{i}_weight"] = layer.weight.data
+            arrays[f"fc{i}_bias"] = layer.bias.data
+        output_index = len(self.hidden_layers) + 1
+        arrays[f"fc{output_index}_weight"] = self.output_layer.weight.data
+        arrays[f"fc{output_index}_bias"] = self.output_layer.bias.data
+        np.savez_compressed(path, **arrays)
 
     @classmethod
     def load(cls, path: str | Path) -> "MLPClassifier":
         data = np.load(path, allow_pickle=True)
-        activation = str(data["activation"])
+        if "hidden_dims" in data:
+            hidden_dims = [int(dim) for dim in data["hidden_dims"].tolist()]
+            activations = str(data["activations"])
+        else:
+            raise ValueError(
+                "This checkpoint was created by the old one-hidden-layer model. "
+                "Please retrain to create a two-hidden-layer checkpoint."
+            )
         model = cls(
             input_dim=int(data["input_dim"]),
-            hidden_dim=int(data["hidden_dim"]),
+            hidden_dims=hidden_dims,
             output_dim=int(data["output_dim"]),
-            activation=activation,
+            activations=activations,
         )
-        model.fc1.weight.data[...] = data["fc1_weight"]
-        model.fc1.bias.data[...] = data["fc1_bias"]
-        model.fc2.weight.data[...] = data["fc2_weight"]
-        model.fc2.bias.data[...] = data["fc2_bias"]
+        for i, layer in enumerate(model.hidden_layers, start=1):
+            if f"fc{i}_weight" in data:
+                layer.weight.data[...] = data[f"fc{i}_weight"]
+                layer.bias.data[...] = data[f"fc{i}_bias"]
+        output_index = len(model.hidden_layers) + 1
+        if f"fc{output_index}_weight" in data:
+            model.output_layer.weight.data[...] = data[f"fc{output_index}_weight"]
+            model.output_layer.bias.data[...] = data[f"fc{output_index}_bias"]
         return model
 
     def summary(self) -> Dict[str, int | str]:
         return {
             "input_dim": self.input_dim,
-            "hidden_dim": self.hidden_dim,
+            "hidden_dims": ",".join(str(dim) for dim in self.hidden_dims),
             "output_dim": self.output_dim,
-            "activation": self.activation_name,
+            "activations": ",".join(self.activation_names),
             "num_parameters": int(sum(p.data.size for p in self.parameters())),
         }
 
+    @property
+    def fc1(self) -> Linear:
+        return self.hidden_layers[0]

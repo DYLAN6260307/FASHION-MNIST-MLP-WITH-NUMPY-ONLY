@@ -85,8 +85,8 @@ def build_report(
 
     heading("1. 任务与方法")
     para(
-        "本实验使用 NumPy 手工实现三层 MLP 分类器，在 Fashion-MNIST 上完成 10 类服装图像分类。"
-        "网络结构为输入层 784 维、一个可配置隐藏层和 10 维输出层。代码中实现了线性层、"
+        "本实验使用 NumPy 手工实现 MLP 分类器，在 Fashion-MNIST 上完成 10 类服装图像分类。"
+        "网络结构为输入层 784 维、两个可配置隐藏层和 10 维输出层。代码中实现了线性层、"
         "ReLU/Sigmoid/Tanh 激活、Softmax 交叉熵、手写反向传播、SGD、学习率衰减和 L2 正则化，"
         "未使用 PyTorch、TensorFlow、JAX 等自动微分框架。"
     )
@@ -101,8 +101,8 @@ def build_report(
     heading("3. 实验设置")
     table_data = [
         ["超参数", "取值"],
-        ["Hidden Dimension", str(config.get("hidden_dim", ""))],
-        ["Activation", str(config.get("activation", ""))],
+        ["Hidden Dimensions", str(config.get("hidden_dims", ""))],
+        ["Activations", str(config.get("activations", ""))],
         ["Epochs", str(config.get("epochs", ""))],
         ["Batch Size", str(config.get("batch_size", ""))],
         ["Learning Rate", str(config.get("learning_rate", ""))],
@@ -170,14 +170,14 @@ def build_report(
 
     heading("8. 超参数查找")
     if search_results:
-        rows = [["lr", "hidden", "weight_decay", "activation", "best_val_acc"]]
+        rows = [["lr", "hidden_dims", "weight_decay", "activations", "best_val_acc"]]
         for row in search_results[:8]:
             rows.append(
                 [
                     str(row.get("learning_rate", "")),
-                    str(row.get("hidden_dim", "")),
+                    str(row.get("hidden_dims", row.get("hidden_dim", ""))),
                     str(row.get("weight_decay", "")),
-                    str(row.get("activation", "")),
+                    str(row.get("activations", row.get("activation", ""))),
                     f"{float(row.get('best_val_accuracy', 0)):.4f}",
                 ]
             )
@@ -194,13 +194,13 @@ def build_report(
         )
         story.append(t)
     else:
-        para("已提供 hyperparam_search.py 支持学习率、隐藏层大小、正则化强度和激活函数的网格搜索；运行后结果会写入报告。")
+        para("已提供 hyperparam_search.py 支持学习率、两层隐藏层大小、正则化强度和激活函数组合的网格搜索；运行后结果会写入报告。")
 
     story.append(PageBreak())
     heading("附录：复现命令")
-    para("训练: python scripts/train.py --epochs 20 --hidden-dim 128 --activation relu --learning-rate 0.05 --weight-decay 1e-4")
+    para("训练: python scripts/train.py --epochs 30 --hidden-dims 256,128 --activations relu,tanh --learning-rate 0.05 --weight-decay 1e-4")
     para("测试: python scripts/evaluate.py --weights outputs/run/best_model.npz")
-    para("超参搜索: python scripts/hyperparam_search.py --epochs 5 --max-train 12000 --max-val 2000")
+    para("超参搜索: python scripts/hyperparam_search.py --epochs 8 --max-train 12000 --max-val 2000")
 
     doc.build(story)
     return output

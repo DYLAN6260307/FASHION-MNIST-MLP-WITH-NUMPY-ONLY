@@ -21,9 +21,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train a NumPy MLP on Fashion-MNIST.")
     parser.add_argument("--data-dir", default="data/fashion-mnist")
     parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--hidden-dim", type=int, default=128)
-    parser.add_argument("--activation", choices=["relu", "sigmoid", "tanh"], default="relu")
-    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--hidden-dims", default="256,128", help="Two hidden layer sizes, e.g. 256,128")
+    parser.add_argument("--activations", default="relu,tanh", help="One activation for both layers or two comma-separated activations")
+    parser.add_argument("--hidden-dim", type=int, default=None, help="Deprecated alias: uses the same size for both hidden layers")
+    parser.add_argument("--activation", choices=["relu", "sigmoid", "tanh"], default=None, help="Deprecated alias: uses the same activation for both hidden layers")
+    parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--learning-rate", type=float, default=0.05)
     parser.add_argument("--lr-decay", type=float, default=0.95)
@@ -46,8 +48,8 @@ def main() -> None:
     config = TrainConfig(
         data_dir=args.data_dir,
         output_dir=output_dir,
-        hidden_dim=args.hidden_dim,
-        activation=args.activation,
+        hidden_dims=f"{args.hidden_dim},{args.hidden_dim}" if args.hidden_dim is not None else args.hidden_dims,
+        activations=args.activation if args.activation is not None else args.activations,
         epochs=args.epochs,
         batch_size=args.batch_size,
         learning_rate=args.learning_rate,
@@ -85,4 +87,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
